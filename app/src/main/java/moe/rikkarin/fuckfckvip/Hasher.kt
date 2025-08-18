@@ -4,7 +4,7 @@ import android.os.Build
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 
-object DeviceInfoHasher {
+object Hasher {
     private const val HASH_SALT = "xwqdTjFWjSUsxYKWALKY3Et3/eSmHVnI3PrQUyEuxzA="
 
     private fun hashString(s: String): String {
@@ -30,10 +30,10 @@ object DeviceInfoHasher {
     fun getCurrentDeviceHash() =
         hashString(Build.BOARD + Build.BRAND + Build.DEVICE + Build.HARDWARE + Build.MANUFACTURER + Build.MODEL + Build.PRODUCT)
 
-    fun getKeyByDeviceHash(deviceHash: String? = null): String {
-        if (deviceHash?.isBlank() == true)
+    fun getSignature(text: String? = null): String {
+        if (text?.isBlank() == true)
             return ""
-        return hashString((deviceHash ?: getCurrentDeviceHash()) + HASH_SALT).substring(0, 16)
+        return hashString((text ?: getCurrentDeviceHash()) + HASH_SALT)
     }
 
 }

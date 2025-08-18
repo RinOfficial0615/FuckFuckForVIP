@@ -1,0 +1,1 @@
+-keepclassmembernames class kotlin.SafePublicationLazyImpl { private volatile java.lang.Object _value; }

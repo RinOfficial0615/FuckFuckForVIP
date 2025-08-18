@@ -11,6 +11,8 @@ pluginManagement {
         gradlePluginPortal()
     }
     plugins {
+        kotlin("plugin.serialization") version "2.2.0"
+
         id("org.lsposed.lsparanoid") version "0.6.0"
     }
 }
