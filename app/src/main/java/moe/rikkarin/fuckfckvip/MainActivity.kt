@@ -250,108 +250,105 @@ fun DeviceHashOrKeySection(
 
 val prettyJson = Json { prettyPrint = true }
 
-@Serializable
-data class ValidateResponse(
-    @SerialName("valid") val valid: Boolean,
-
-    // found
-    @SerialName("expiry") val expiry: Long? = null,
-    @SerialName("remaining") val remaining: Long? = null,
-    @SerialName("user_id") val userId: Long? = null,
-
-    // not found
-    @SerialName("reason") val reason: String? = null,
-)
-
 @OptIn(ExperimentalSerializationApi::class)
-private suspend fun performValidation(deviceHashOrKey: String): AnnotatedString {
+private suspend fun performValidation(deviceHashOrKey: String) = withContext(Dispatchers.IO) {
+    @Serializable
+    data class ValidateResponse(
+        @SerialName("valid") val valid: Boolean,
 
+        // found
+        @SerialName("expiry") val expiry: Long? = null,
+        @SerialName("remaining") val remaining: Long? = null,
+        @SerialName("user_id") val userId: Long? = null,
 
-    return withContext(Dispatchers.IO) {
-        runCatching {
-            val signature = Hasher.getSignature(deviceHashOrKey)
-            val url = buildString {
-                append("https://zyfzd.xyz/validate?key=")
-                append(URLEncoder.encode(deviceHashOrKey, "UTF-8"))
-                append("&signature=")
-                append(URLEncoder.encode(signature, "UTF-8"))
+        // not found
+        @SerialName("reason") val reason: String? = null,
+    )
+
+    runCatching {
+        val signature = Hasher.getSignature(deviceHashOrKey)
+        val url = buildString {
+            append("https://zyfzd.xyz/validate?key=")
+            append(URLEncoder.encode(deviceHashOrKey, "UTF-8"))
+            append("&signature=")
+            append(URLEncoder.encode(signature, "UTF-8"))
+        }
+
+        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 5000
+            readTimeout = 5000
+            requestMethod = "GET"
+        }
+
+        val responseCode = connection.responseCode
+        fun isBadResponseCode() = responseCode in 400..599
+
+        val inputStream = if (isBadResponseCode()) {
+            connection.errorStream
+        } else {
+            connection.inputStream
+        }
+        val resp: ValidateResponse = prettyJson.decodeFromStream(inputStream)
+
+        buildAnnotatedString {
+            append("Response code: ")
+            val color = when {
+                responseCode == 200 -> Color.Green
+                isBadResponseCode() -> Color.Red
+                else -> Color.Yellow
+            }
+            withStyle(SpanStyle(color = color)) {
+                append(responseCode.toString())
             }
 
-            val connection = URL(url).openConnection() as HttpURLConnection
-            connection.connectTimeout = 5000
-            connection.readTimeout = 5000
-            connection.requestMethod = "GET"
-
-            val responseCode = connection.responseCode
-            fun isBadResponseCode() = responseCode in 400..599
-
-            val inputStream = if (isBadResponseCode()) {
-                connection.errorStream
-            } else {
-                connection.inputStream
+            append("\nValid: ")
+            withStyle(SpanStyle(color = if (resp.valid) Color.Green else Color.Red)) {
+                append(resp.valid.toString())
             }
-            val resp: ValidateResponse = prettyJson.decodeFromStream(inputStream)
 
-            buildAnnotatedString {
-                append("Response code: ")
-                val color = when {
-                    responseCode == 200 -> Color.Green
-                    isBadResponseCode() -> Color.Red
-                    else -> Color.Yellow
-                }
-                withStyle(SpanStyle(color = color)) {
-                    append(responseCode.toString())
-                }
+            append("\n")
 
-                append("\nValid: ")
-                withStyle(SpanStyle(color = if (resp.valid) Color.Green else Color.Red)) {
-                    append(resp.valid.toString())
-                }
-
-                append("\n")
-
-                resp.reason?.run {
-                    append("\nReason: ")
-                    append(this@run)
-                }
-
-                resp.expiry?.run {
-                    append("\nExpiry: ")
-                    append(
-                        SimpleDateFormat(
-                            "yyyy-MM-dd HH:mm:ss",
-                            Locale.getDefault()
-                        ).format(this@run * 1000)
-                    )
-                }
-
-                resp.remaining?.run {
-                    append("\nRemaining: ")
-                    val totalSeconds = this@run
-                    val days = totalSeconds / (24 * 3600)
-                    val hours = (totalSeconds % (24 * 3600)) / 3600
-                    val minutes = (totalSeconds % 3600) / 60
-                    val seconds = totalSeconds % 60
-                    append("${days}d ${hours}h ${minutes}min ${seconds}s")
-                }
-
-                resp.userId?.run {
-                    append("\nUser ID: ")
-                    append(this@run.toString())
-                }
-
-                append("\n\nRaw response:\n")
-                append(prettyJson.encodeToString(resp))
+            resp.reason?.run {
+                append("\nReason: ")
+                append(this@run)
             }
-        }.getOrElse { error ->
-            val stackTrace = error.stackTraceToString()
-            Log.e("PerformValidation", "performValidation error: $stackTrace")
-            buildAnnotatedString {
-                withStyle(SpanStyle(color = Color.Red)) {
-                    append("Error: ")
-                }
-                append(error.stackTraceToString().dropLastWhile { it == '\n' })
+
+            resp.expiry?.run {
+                append("\nExpiry: ")
+                append(
+                    SimpleDateFormat(
+                        "yyyy-MM-dd HH:mm:ss",
+                        Locale.getDefault()
+                    ).format(this@run * 1000)
+                )
             }
+
+            resp.remaining?.run {
+                append("\nRemaining: ")
+                val totalSeconds = this@run
+                val days = totalSeconds / (24 * 3600)
+                val hours = (totalSeconds % (24 * 3600)) / 3600
+                val minutes = (totalSeconds % 3600) / 60
+                val seconds = totalSeconds % 60
+                append("${days}d ${hours}h ${minutes}min ${seconds}s")
+            }
+
+            resp.userId?.run {
+                append("\nUser ID: ")
+                append(this@run.toString())
+            }
+
+            append("\n\nRaw response:\n")
+            append(prettyJson.encodeToString(resp))
+        }
+    }.getOrElse { error ->
+        val stackTrace = error.stackTraceToString()
+        Log.e("PerformValidation", "performValidation error: $stackTrace")
+        buildAnnotatedString {
+            withStyle(SpanStyle(color = Color.Red)) {
+                append("Error: ")
+            }
+            append(stackTrace.dropLastWhile { it == '\n' })
         }
     }
 }
