@@ -358,6 +358,11 @@ private suspend fun performValidation(deviceHashOrKey: String) = withContext(Dis
 fun SignatureSection(
     deviceHashOrKey: String,
 ) {
+    var showFullSignature by remember { mutableStateOf(false) }
+    val signature = Hasher.getSignature(deviceHashOrKey)
+
+    val context = LocalContext.current
+
     Surface(
         shape = MaterialTheme.shapes.extraLarge,
         shadowElevation = 4.dp,
@@ -374,10 +379,6 @@ fun SignatureSection(
                 "Signature",
                 style = MaterialTheme.typography.headlineSmall
             )
-
-            var showFullSignature by remember { mutableStateOf(false) }
-            var signature by remember { mutableStateOf(Hasher.getSignature(deviceHashOrKey)) }
-            val context = LocalContext.current
 
             Surface(
                 shape = MaterialTheme.shapes.extraLarge,
